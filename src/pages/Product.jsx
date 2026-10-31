@@ -6,13 +6,18 @@ import { useCart } from '../context/CartContext'
 
 export default function Product() {
   const { id } = useParams()
+  const { add } = useCart()
 
   const [p, setP] = useState(null)
+  const [variants, setVariants] = useState([])
   const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState(false)
   const [selectedImage, setSelectedImage] = useState(0)
 
-  const { add } = useCart()
+  const [selectedSize, setSelectedSize] = useState('')
+  const [selectedColor, setSelectedColor] = useState('')
+  const [quantity, setQuantity] = useState(1)
+  const [message, setMessage] = useState('')
 
   useEffect(() => {
     let mounted = true
@@ -20,22 +25,44 @@ export default function Product() {
     async function fetchProduct() {
       setLoading(true)
 
-      const { data, error } = await supabase
-        ?.from('products')
+      const { data: product, error: productError } = await supabase
+        .from('products')
         .select('*')
         .eq('id', id)
         .single()
 
       if (!mounted) return
 
-      if (error) {
-        console.error('Error loading product:', error.message)
+      if (productError) {
+        console.error('Error loading product:', productError.message)
         setP(null)
-      } else {
-        setP(data)
-        setSelectedImage(0)
+        setLoading(false)
+        return
       }
 
+      const { data: productVariants, error: variantError } = await supabase
+        .from('product_variants')
+        .select('*')
+        .eq('product_id', id)
+        .order('size', { ascending: true })
+
+      if (!mounted) return
+
+      if (variantError) {
+        console.error('Error loading variations:', variantError.message)
+        setVariants([])
+      } else {
+        setVariants(productVariants || [])
+
+        if (productVariants?.length) {
+          setSelectedSize(productVariants[0].size)
+          setSelectedColor(productVariants[0].color)
+        }
+      }
+
+      setP(product)
+      setSelectedImage(0)
+      setQuantity(1)
       setLoading(false)
     }
 
@@ -46,16 +73,72 @@ export default function Product() {
     }
   }, [id])
 
-  // Add product to cart
+  const availableSizes = [
+    ...new Set(variants.map(variant => variant.size))
+  ]
+
+  const availableColors = [
+    ...new Set(
+      variants
+        .filter(variant => variant.size === selectedSize)
+        .map(variant => variant.color)
+    )
+  ]
+
+  const selectedVariant = variants.find(
+    variant =>
+      variant.size === selectedSize &&
+      variant.color === selectedColor
+  )
+
+  const showSize = availableSizes.length > 1 ||
+    (availableSizes.length === 1 && availableSizes[0] !== 'One Size')
+
+  const showColor = availableColors.length > 1 ||
+    (availableColors.length === 1 && availableColors[0] !== 'Default')
+
+  function changeSize(size) {
+    setSelectedSize(size)
+
+    const firstAvailableColor = variants.find(
+      variant => variant.size === size
+    )?.color
+
+    setSelectedColor(firstAvailableColor || '')
+    setQuantity(1)
+    setMessage('')
+  }
+
+  function changeColor(color) {
+    setSelectedColor(color)
+    setQuantity(1)
+    setMessage('')
+  }
+
   async function handleAddToCart() {
-    if (adding || !p || p.stock < 1) return
+    if (adding || !p || !selectedVariant) return
+
+    if (quantity > selectedVariant.stock) {
+      setMessage('The selected quantity is not available.')
+      return
+    }
 
     setAdding(true)
+    setMessage('')
 
     try {
-      await add(p)
+      add({
+        ...p,
+        variant_id: selectedVariant.id,
+        size: selectedVariant.size,
+        color: selectedVariant.color,
+        stock: selectedVariant.stock
+      }, quantity)
+
+      setMessage('Added to your bag successfully.')
     } catch (error) {
       console.error('Could not add product to bag:', error)
+      setMessage(error.message || 'Could not add this item to your bag.')
     } finally {
       setAdding(false)
     }
@@ -80,7 +163,6 @@ export default function Product() {
 
   const special = p.is_special && p.sale_price != null
 
-  // Display multiple images, or use the original image.
   const images = p.image_urls?.length
     ? p.image_urls
     : p.image_url
@@ -89,27 +171,21 @@ export default function Product() {
 
   const currentImage = images[selectedImage]
 
+  const stock = Number(selectedVariant?.stock || 0)
+
   return (
     <main className="container page-section">
       <div className="detail-grid">
 
-        {/* PRODUCT IMAGE GALLERY */}
         <div className="detail-gallery">
-
           <div className="detail-image">
             {currentImage ? (
-              <img
-                src={currentImage}
-                alt={p.name}
-              />
+              <img src={currentImage} alt={p.name} />
             ) : (
-              <div className="image-placeholder">
-                BLAQDAWG
-              </div>
+              <div className="image-placeholder">BLAQDAWG</div>
             )}
           </div>
 
-          {/* IMAGE THUMBNAILS */}
           {images.length > 1 && (
             <div className="detail-thumbnails">
               {images.map((image, index) => (
@@ -138,15 +214,11 @@ export default function Product() {
           )}
         </div>
 
-        {/* PRODUCT DETAILS */}
         <div className="detail-copy">
-
           <p className="eyebrow">
             {p.collection === 'weaves'
               ? 'WEAVES'
-              : 'BLAQ DAWG VINTAGE'}
-            {' / '}
-            {p.category}
+              : 'BLAQ DAWG VINTAGE'} / {p.category}
           </p>
 
           <h1>{p.name}</h1>
@@ -164,32 +236,109 @@ export default function Product() {
 
           <p>{p.description}</p>
 
-          <p className="stock-copy">
-            {p.stock > 0
-              ? `${p.stock} available`
-              : 'Currently out of stock'}
-          </p>
+          {variants.length > 0 ? (
+            <>
+              {showSize && (
+                <div className="variant-options">
+                  <label htmlFor="product-size">Size</label>
+                  <select
+                    id="product-size"
+                    value={selectedSize}
+                    onChange={e => changeSize(e.target.value)}
+                  >
+                    {availableSizes.map(size => (
+                      <option key={size} value={size}>
+                        {size}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
-          {/* ADD TO BAG BUTTON WITH LOADER */}
-          <button
-            className="button button-dark add-cart-button"
-            disabled={p.stock < 1 || adding}
-            onClick={handleAddToCart}
-          >
-            {adding ? (
-              <>
-                <span className="cart-spinner"></span>
-                ADDING...
-              </>
-            ) : (
-              'ADD TO BAG'
-            )}
-          </button>
+              {showColor && (
+                <div className="variant-options">
+                  <label htmlFor="product-color">Colour</label>
+                  <select
+                    id="product-color"
+                    value={selectedColor}
+                    onChange={e => changeColor(e.target.value)}
+                  >
+                    {availableColors.map(color => (
+                      <option key={color} value={color}>
+                        {color}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {selectedVariant && (
+                <div className="stock-copy">
+                  {stock === 0 ? (
+                    <p>Currently out of stock</p>
+                  ) : stock < 5 ? (
+                    <p className="stock-warning">
+                      Hurry! Only {stock} {stock === 1 ? 'left' : 'left'} in
+                      stock.
+                    </p>
+                  ) : (
+                    <p>{stock} available</p>
+                  )}
+                </div>
+              )}
+
+              {selectedVariant && stock > 0 && (
+                <div className="variant-options">
+                  <label htmlFor="product-quantity">Quantity</label>
+                  <select
+                    id="product-quantity"
+                    value={quantity}
+                    onChange={e => setQuantity(Number(e.target.value))}
+                  >
+                    {Array.from(
+                      { length: stock },
+                      (_, index) => index + 1
+                    ).map(number => (
+                      <option key={number} value={number}>
+                        {number}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <button
+                className="button button-dark add-cart-button"
+                disabled={!selectedVariant || stock < 1 || adding}
+                onClick={handleAddToCart}
+              >
+                {adding ? (
+                  <>
+                    <span className="cart-spinner"></span>
+                    ADDING...
+                  </>
+                ) : stock < 1 ? (
+                  'OUT OF STOCK'
+                ) : (
+                  'ADD TO BAG'
+                )}
+              </button>
+
+              {message && (
+                <p className="small-note" role="status">
+                  {message}
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="stock-warning">
+              No variations are currently available for this item.
+            </p>
+          )}
 
           <p className="small-note">
             Delivery R150 · Lead time 2–3 weeks after payment is confirmed.
           </p>
-
         </div>
       </div>
     </main>

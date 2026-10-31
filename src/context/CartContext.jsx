@@ -11,20 +11,25 @@ const CartContext = createContext(null)
 
 const CART_STORAGE_KEY = 'blaqdawg-cart'
 
-export function CartProvider({ children }) {
+function getCartItemId(product) {
+  return `${product.id}-${product.variant_id}`
+}
 
-  // Restore previously saved cart items.
+export function CartProvider({ children }) {
   const [items, setItems] = useState(() => {
     try {
       const savedCart = localStorage.getItem(CART_STORAGE_KEY)
-      return savedCart ? JSON.parse(savedCart) : []
+      const parsed = savedCart ? JSON.parse(savedCart) : []
+
+      // Old cart items do not contain variation IDs.
+      // They cannot be checked out using the new stock system.
+      return parsed.filter(item => item.variant_id)
     } catch (error) {
       console.error('Could not restore cart:', error)
       return []
     }
   })
 
-  // Save cart whenever items change.
   useEffect(() => {
     try {
       localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items))
@@ -33,64 +38,103 @@ export function CartProvider({ children }) {
     }
   }, [items])
 
-  // Add product to cart.
-  const add = (product) => {
+  // Add a product variation to the cart.
+  const add = (product, quantity = 1) => {
+    if (!product?.id || !product?.variant_id) {
+      throw new Error('Please select a size and colour first.')
+    }
+
+    const availableStock = Number(product.stock) || 0
+    const amount = Math.max(1, Number(quantity) || 1)
+
+    if (availableStock < 1) {
+      throw new Error('This variation is out of stock.')
+    }
+
     setItems(old => {
-      const found = old.find(x => x.id === product.id)
+      const cartItemId = getCartItemId(product)
+      const found = old.find(x => x.cartItemId === cartItemId)
 
       if (found) {
+        const newQuantity = found.quantity + amount
+
+        if (newQuantity > availableStock) {
+          throw new Error(
+            `Only ${availableStock} items are available for this variation.`
+          )
+        }
+
         return old.map(x =>
-          x.id === product.id
-            ? { ...x, quantity: x.quantity + 1 }
+          x.cartItemId === cartItemId
+            ? { ...x, quantity: newQuantity, stock: availableStock }
             : x
         )
       }
 
-      return [...old, { ...product, quantity: 1 }]
+      if (amount > availableStock) {
+        throw new Error(
+          `Only ${availableStock} items are available for this variation.`
+        )
+      }
+
+      return [
+        ...old,
+        {
+          ...product,
+          cartItemId,
+          quantity: amount
+        }
+      ]
     })
   }
 
-  // Update product quantity.
-  const update = (id, quantity) => {
+  // Update cart quantity.
+  const update = (cartItemId, quantity) => {
     setItems(old =>
-      old.map(x =>
-        x.id === id
-          ? {
-              ...x,
-              quantity: Math.max(1, Number(quantity) || 1)
-            }
-          : x
-      )
+      old.map(item => {
+        if (item.cartItemId !== cartItemId) return item
+
+        const requested = Math.max(1, Number(quantity) || 1)
+        const available = Number(item.stock) || 0
+
+        return {
+          ...item,
+          quantity: Math.min(requested, available)
+        }
+      })
     )
   }
 
-  // Remove product from cart.
-  const remove = (id) => {
-    setItems(old => old.filter(x => x.id !== id))
+  // Remove a variation from the cart.
+  const remove = cartItemId => {
+    setItems(old =>
+      old.filter(item => item.cartItemId !== cartItemId)
+    )
   }
 
-  // Clear entire cart.
+  // Clear the entire cart.
   const clear = () => {
     setItems([])
   }
 
   // Calculate subtotal.
   const subtotal = useMemo(() => {
-    return items.reduce(
-      (sum, x) =>
-        sum +
-        Number(
-          x.sale_price && x.is_special
-            ? x.sale_price
-            : x.price
-        ) * x.quantity,
-      0
-    )
+    return items.reduce((sum, item) => {
+      const price =
+        item.is_special && item.sale_price != null
+          ? Number(item.sale_price)
+          : Number(item.price)
+
+      return sum + price * item.quantity
+    }, 0)
   }, [items])
 
   // Calculate total number of items.
   const count = useMemo(() => {
-    return items.reduce((sum, x) => sum + x.quantity, 0)
+    return items.reduce(
+      (sum, item) => sum + item.quantity,
+      0
+    )
   }, [items])
 
   return (
