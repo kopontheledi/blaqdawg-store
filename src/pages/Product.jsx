@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { supabase, money } from '../lib/supabase'
 import { useCart } from '../context/CartContext'
+import { ShoppingBag, ArrowLeft, CheckCircle, AlertCircle } from 'lucide-react'
 
 export default function Product() {
   const { id } = useParams()
@@ -146,17 +147,26 @@ export default function Product() {
 
   if (loading) {
     return (
-      <main className="container page-section">
-        <p>Loading item...</p>
+      <main className="min-h-[60vh] flex items-center justify-center px-5">
+        <div className="text-center">
+          <div className="w-10 h-10 border-4 border-gray-200 border-t-black rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-sm text-gray-500">Loading item...</p>
+        </div>
       </main>
     )
   }
 
   if (!p || !p.active) {
     return (
-      <main className="container page-section">
-        <h1>Item not found</h1>
-        <Link to="/">Back home</Link>
+      <main className="min-h-[60vh] flex flex-col items-center justify-center px-5 text-center">
+        <h1 className="text-2xl font-bold mb-3">Item not found</h1>
+        <Link
+          to="/"
+          className="inline-flex items-center gap-2 bg-black text-white px-6 py-3 text-sm font-semibold hover:bg-gray-800 transition"
+        >
+          <ArrowLeft size={16} />
+          Back home
+        </Link>
       </main>
     )
   }
@@ -170,37 +180,55 @@ export default function Product() {
       : []
 
   const currentImage = images[selectedImage]
-
   const stock = Number(selectedVariant?.stock || 0)
 
   return (
-    <main className="container page-section">
-      <div className="detail-grid">
+    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-14">
 
-        <div className="detail-gallery">
-          <div className="detail-image">
+      <Link
+        to="/shop"
+        className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-black mb-8 transition"
+      >
+        <ArrowLeft size={16} />
+        Back to shop
+      </Link>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16">
+
+        {/* PRODUCT IMAGES */}
+        <div>
+          <div className="aspect-[4/5] bg-gray-100 overflow-hidden">
             {currentImage ? (
-              <img src={currentImage} alt={p.name} />
+              <img
+                src={currentImage}
+                alt={p.name}
+                className="w-full h-full object-cover"
+              />
             ) : (
-              <div className="image-placeholder">BLAQDAWG</div>
+              <div className="w-full h-full flex items-center justify-center text-2xl font-black tracking-widest text-gray-400">
+                BLAQDAWG
+              </div>
             )}
           </div>
 
           {images.length > 1 && (
-            <div className="detail-thumbnails">
+            <div className="grid grid-cols-5 sm:grid-cols-6 gap-3 mt-4">
               {images.map((image, index) => (
                 <button
                   key={`${image}-${index}`}
                   type="button"
-                  className={`detail-thumbnail ${
-                    selectedImage === index ? 'selected' : ''
-                  }`}
                   onClick={() => setSelectedImage(index)}
                   aria-label={`View product image ${index + 1}`}
+                  className={`aspect-square overflow-hidden border-2 transition ${
+                    selectedImage === index
+                      ? 'border-black'
+                      : 'border-transparent hover:border-gray-300'
+                  }`}
                 >
                   <img
                     src={image}
                     alt={`${p.name} view ${index + 1}`}
+                    className="w-full h-full object-cover"
                   />
                 </button>
               ))}
@@ -208,43 +236,67 @@ export default function Product() {
           )}
 
           {images.length > 1 && (
-            <p className="gallery-note">
+            <p className="text-xs text-gray-400 mt-3 text-center">
               {selectedImage + 1} of {images.length} images
             </p>
           )}
         </div>
 
-        <div className="detail-copy">
-          <p className="eyebrow">
+        {/* PRODUCT INFORMATION */}
+        <div className="lg:sticky lg:top-24 lg:self-start">
+
+          <p className="text-xs font-bold tracking-[0.2em] text-gray-500 uppercase mb-4">
             {p.collection === 'weaves'
               ? 'WEAVES'
               : 'BLAQ DAWG VINTAGE'} / {p.category}
           </p>
 
-          <h1>{p.name}</h1>
+          <h1 className="text-3xl md:text-4xl font-black tracking-tight mb-4">
+            {p.name}
+          </h1>
 
-          <div className="price-line large">
+          <div className="flex items-center gap-3 mb-6">
             {special ? (
               <>
-                <strong>{money(p.sale_price)}</strong>
-                <del>{money(p.price)}</del>
+                <span className="text-2xl font-bold">
+                  {money(p.sale_price)}
+                </span>
+                <del className="text-lg text-gray-400">
+                  {money(p.price)}
+                </del>
+                <span className="text-xs font-bold bg-black text-white px-3 py-1">
+                  SPECIAL
+                </span>
               </>
             ) : (
-              <strong>{money(p.price)}</strong>
+              <span className="text-2xl font-bold">
+                {money(p.price)}
+              </span>
             )}
           </div>
 
-          <p>{p.description}</p>
+          <p className="text-gray-600 leading-7 mb-8 whitespace-pre-line">
+            {p.description}
+          </p>
 
           {variants.length > 0 ? (
-            <>
+            <div className="space-y-6">
+
+              {/* SIZE */}
               {showSize && (
-                <div className="variant-options">
-                  <label htmlFor="product-size">Size</label>
+                <div>
+                  <label
+                    htmlFor="product-size"
+                    className="block text-sm font-bold mb-2"
+                  >
+                    Size
+                  </label>
+
                   <select
                     id="product-size"
                     value={selectedSize}
                     onChange={e => changeSize(e.target.value)}
+                    className="w-full border border-gray-300 bg-white px-4 py-3 text-sm outline-none focus:border-black"
                   >
                     {availableSizes.map(size => (
                       <option key={size} value={size}>
@@ -255,13 +307,21 @@ export default function Product() {
                 </div>
               )}
 
+              {/* COLOUR */}
               {showColor && (
-                <div className="variant-options">
-                  <label htmlFor="product-color">Colour</label>
+                <div>
+                  <label
+                    htmlFor="product-color"
+                    className="block text-sm font-bold mb-2"
+                  >
+                    Colour
+                  </label>
+
                   <select
                     id="product-color"
                     value={selectedColor}
                     onChange={e => changeColor(e.target.value)}
+                    className="w-full border border-gray-300 bg-white px-4 py-3 text-sm outline-none focus:border-black"
                   >
                     {availableColors.map(color => (
                       <option key={color} value={color}>
@@ -272,28 +332,42 @@ export default function Product() {
                 </div>
               )}
 
+              {/* STOCK STATUS */}
               {selectedVariant && (
-                <div className="stock-copy">
+                <div className="text-sm">
                   {stock === 0 ? (
-                    <p>Currently out of stock</p>
+                    <p className="flex items-center gap-2 text-red-600 font-semibold">
+                      <AlertCircle size={17} />
+                      Currently out of stock
+                    </p>
                   ) : stock < 5 ? (
-                    <p className="stock-warning">
-                      Hurry! Only {stock} {stock === 1 ? 'left' : 'left'} in
-                      stock.
+                    <p className="flex items-center gap-2 text-orange-600 font-semibold">
+                      <AlertCircle size={17} />
+                      Hurry! Only {stock} left in stock.
                     </p>
                   ) : (
-                    <p>{stock} available</p>
+                    <p className="text-green-700 font-medium">
+                      {stock} available
+                    </p>
                   )}
                 </div>
               )}
 
+              {/* QUANTITY */}
               {selectedVariant && stock > 0 && (
-                <div className="variant-options">
-                  <label htmlFor="product-quantity">Quantity</label>
+                <div>
+                  <label
+                    htmlFor="product-quantity"
+                    className="block text-sm font-bold mb-2"
+                  >
+                    Quantity
+                  </label>
+
                   <select
                     id="product-quantity"
                     value={quantity}
                     onChange={e => setQuantity(Number(e.target.value))}
+                    className="w-28 border border-gray-300 bg-white px-4 py-3 text-sm outline-none focus:border-black"
                   >
                     {Array.from(
                       { length: stock },
@@ -307,38 +381,63 @@ export default function Product() {
                 </div>
               )}
 
+              {/* ADD TO BAG */}
               <button
-                className="button button-dark add-cart-button"
+                type="button"
                 disabled={!selectedVariant || stock < 1 || adding}
                 onClick={handleAddToCart}
+                className="w-full flex items-center justify-center gap-3 bg-black text-white py-4 px-6 text-sm font-bold tracking-widest hover:bg-gray-800 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
                 {adding ? (
                   <>
-                    <span className="cart-spinner"></span>
+                    <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                     ADDING...
                   </>
                 ) : stock < 1 ? (
                   'OUT OF STOCK'
                 ) : (
-                  'ADD TO BAG'
+                  <>
+                    <ShoppingBag size={18} />
+                    ADD TO BAG
+                  </>
                 )}
               </button>
 
+              {/* FEEDBACK MESSAGE */}
               {message && (
-                <p className="small-note" role="status">
+                <p
+                  role="status"
+                  className={`flex items-center gap-2 text-sm font-medium ${
+                    message.includes('successfully')
+                      ? 'text-green-700'
+                      : 'text-red-600'
+                  }`}
+                >
+                  {message.includes('successfully') && (
+                    <CheckCircle size={17} />
+                  )}
                   {message}
                 </p>
               )}
-            </>
+
+            </div>
           ) : (
-            <p className="stock-warning">
+            <p className="flex items-center gap-2 text-sm text-red-600 font-medium">
+              <AlertCircle size={17} />
               No variations are currently available for this item.
             </p>
           )}
 
-          <p className="small-note">
-            Delivery R150 · Lead time 2–3 weeks after payment is confirmed.
-          </p>
+          {/* DELIVERY INFORMATION */}
+          <div className="border-t border-gray-200 mt-8 pt-6 space-y-2">
+            <p className="text-sm text-gray-600">
+              <strong className="text-black">Delivery:</strong> R150
+            </p>
+            <p className="text-sm text-gray-600">
+              <strong className="text-black">Lead time:</strong> 2–3 weeks after payment is confirmed.
+            </p>
+          </div>
+
         </div>
       </div>
     </main>
