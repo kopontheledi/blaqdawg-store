@@ -35,6 +35,17 @@ const blankVariant = {
   stock: 0
 }
 
+const STANDARD_SIZES = [
+  'XS', 'S', 'Small', 'M', 'Medium', 'L', 'Large', 'XL', 'XXL', 'XXXL',
+  'One Size', '10 inch', '12 inch', '14 inch', '16 inch', '18 inch',
+  '20 inch', '22 inch', '24 inch', '26 inch', '28 inch', '30 inch', '32 inch'
+]
+
+const STANDARD_COLOURS = [
+  'Black', 'White', 'Grey', 'Red', 'Blue', 'Navy', 'Pink', 'Baby Pink',
+  'Brown', 'Beige', 'Cream', 'Green', 'Yellow', 'Purple', 'Orange', 'Burgundy'
+]
+
 export default function Admin() {
   const [session, setSession] = useState(null)
   const [authorized, setAuthorized] = useState(false)
@@ -51,7 +62,10 @@ export default function Admin() {
   const [proofErrors, setProofErrors] = useState({})
 
   const [form, setForm] = useState(blank)
-  const [variants, setVariants] = useState([{ ...blankVariant }])
+  const [variants, setVariants] = useState([])
+  const [selectedSize, setSelectedSize] = useState('')
+  const [customSize, setCustomSize] = useState('')
+  const [newColourInputs, setNewColourInputs] = useState({})
   const [editing, setEditing] = useState(null)
   const [file, setFile] = useState(null)
 
@@ -289,27 +303,98 @@ export default function Admin() {
     )
   }
 
-  const addVariant = () => {
-    setVariants(current => [
-      ...current,
-      {
-        ...blankVariant,
-        id: null,
-        size: '',
-        color: '',
-        stock: 0
-      }
-    ])
-  }
+  // Add a size. A blank colour row is created so the user can
+  // choose an existing colour or add a custom one.
+  const addSize = () => {
+    const size = selectedSize === '__custom__'
+      ? customSize.trim()
+      : selectedSize.trim()
 
-  const removeVariant = (index) => {
-    if (variants.length === 1) {
-      setMessage('A product must have at least one variation.')
+    if (!size) {
+      setMessage('Please select or enter a size.')
       return
     }
 
+    const alreadyExists = variants.some(
+      variant => variant.size.toLowerCase() === size.toLowerCase()
+    )
+
+    if (alreadyExists) {
+      setMessage(`${size} has already been added.`)
+      return
+    }
+
+    setVariants(current => [
+      ...current,
+      { id: null, size, color: '', stock: 0 }
+    ])
+
+    setSelectedSize('')
+    setCustomSize('')
+    setMessage(`${size} added. Now choose or add its colours.`)
+  }
+
+  // Add a colour to a size. If its initial blank row is still present,
+  // fill that row instead of creating an extra empty variation.
+  const addColour = (size) => {
+    const color = (newColourInputs[size] || '').trim()
+
+    if (!color) {
+      setMessage('Please enter a colour.')
+      return
+    }
+
+    const existingForSize = variants.filter(
+      variant => variant.size.toLowerCase() === size.toLowerCase()
+    )
+
+    const duplicate = existingForSize.some(
+      variant => variant.color.toLowerCase() === color.toLowerCase()
+    )
+
+    if (duplicate) {
+      setMessage(`${color} already exists under ${size}.`)
+      return
+    }
+
+    const blankIndex = variants.findIndex(
+      variant =>
+        variant.size.toLowerCase() === size.toLowerCase() &&
+        !variant.color.trim()
+    )
+
+    if (blankIndex !== -1) {
+      changeVariant(blankIndex, 'color', color)
+    } else {
+      setVariants(current => [
+        ...current,
+        { id: null, size, color, stock: 0 }
+      ])
+    }
+
+    setNewColourInputs(current => ({
+      ...current,
+      [size]: ''
+    }))
+
+    setMessage(`${color} added under ${size}.`)
+  }
+
+  // Remove one colour variation
+  const removeVariant = (index) => {
+    setVariants(current => current.filter((_, i) => i !== index))
+  }
+
+  // Remove an entire size and all its colours
+  const removeSize = (size) => {
+    const confirmed = window.confirm(
+      `Remove size ${size} and all its colour variations?`
+    )
+
+    if (!confirmed) return
+
     setVariants(current =>
-      current.filter((_, i) => i !== index)
+      current.filter(variant => variant.size !== size)
     )
   }
 
@@ -349,7 +434,7 @@ export default function Admin() {
             color: variant.color,
             stock: variant.stock
           }))
-        : [{ ...blankVariant }]
+        : []
     )
 
     setFile(null)
@@ -366,8 +451,11 @@ export default function Admin() {
   const reset = () => {
     setEditing(null)
     setForm({ ...blank })
-    setVariants([{ ...blankVariant }])
+    setVariants([])
     setFile(null)
+    setSelectedSize('')
+    setCustomSize('')
+    setNewColourInputs({})
   }
 
   // Save product and variations
@@ -726,6 +814,17 @@ export default function Admin() {
     order => order.status === 'pending_payment' && order.proof_file_path
   ).length
 
+  const sizeGroups = [
+    ...new Set(variants.map(variant => variant.size).filter(Boolean))
+  ]
+
+  const colourOptions = [
+    ...new Set([
+      ...STANDARD_COLOURS,
+      ...variants.map(variant => variant.color).filter(Boolean)
+    ])
+  ]
+
   // Admin dashboard
   return (
     <main className="min-h-screen bg-gray-50 px-4 py-8 sm:px-6 lg:px-8">
@@ -987,92 +1086,205 @@ export default function Admin() {
                 </label>
               </div>
 
-              {/* Variations */}
+              {/* SIZE, COLOUR & STOCK MANAGER */}
               <div className="mt-7 border border-gray-200 bg-gray-50 p-4 sm:p-6">
-                <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
-                  <div>
-                    <h3 className="text-sm font-black tracking-wide">
-                      SIZE, COLOUR & STOCK
-                    </h3>
-                    <p className="mt-1 text-xs text-gray-500">
-                      Add each available size and colour combination.
-                    </p>
+                <div className="mb-6 border-b border-gray-200 pb-5">
+                  <h3 className="text-sm font-black tracking-wide">
+                    SIZE, COLOUR & STOCK
+                  </h3>
+                  <p className="mt-2 text-xs leading-5 text-gray-500">
+                    Select a size, add its available colours and enter the stock quantity for each colour.
+                  </p>
+                </div>
+
+                {/* ADD SIZE */}
+                <div className="mb-7 border border-gray-200 bg-white p-4">
+                  <h4 className="mb-3 text-xs font-black tracking-wider">
+                    ADD A SIZE
+                  </h4>
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <select
+                      value={selectedSize}
+                      onChange={e => setSelectedSize(e.target.value)}
+                      className="w-full border border-gray-300 bg-white px-3 py-3 text-sm outline-none focus:border-black"
+                    >
+                      <option value="">Select size</option>
+                      {STANDARD_SIZES.map(size => (
+                        <option key={size} value={size}>{size}</option>
+                      ))}
+                      <option value="__custom__">+ Add custom size</option>
+                    </select>
+
+                    <button
+                      type="button"
+                      onClick={addSize}
+                      className="flex items-center justify-center gap-2 bg-black px-4 py-3 text-xs font-black tracking-wider text-white transition hover:bg-gray-700"
+                    >
+                      <Plus size={16} />
+                      ADD SIZE
+                    </button>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={addVariant}
-                    className="flex items-center gap-2 bg-black px-4 py-3 text-[10px] font-black tracking-wider text-white transition hover:bg-gray-700"
-                  >
-                    <Plus size={15} />
-                    ADD VARIATION
-                  </button>
+                  {selectedSize === '__custom__' && (
+                    <input
+                      value={customSize}
+                      onChange={e => setCustomSize(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          addSize()
+                        }
+                      }}
+                      placeholder="Enter custom size, e.g. 34 inch"
+                      className="mt-3 w-full border border-gray-300 px-3 py-3 text-sm outline-none focus:border-black"
+                    />
+                  )}
                 </div>
 
-                <div className="space-y-3">
-                  {variants.map((variant, index) => (
-                    <div
-                      key={variant.id || index}
-                      className="grid grid-cols-1 gap-3 border border-gray-200 bg-white p-4 sm:grid-cols-[1fr_1fr_110px_40px] sm:items-end"
-                    >
-                      <label className="block text-[10px] font-bold">
-                        SIZE
-                        <input
-                          required
-                          value={variant.size}
-                          placeholder="e.g. Small, Medium, 18 inch"
-                          onChange={e =>
-                            changeVariant(index, 'size', e.target.value)
-                          }
-                          className="mt-2 w-full border border-gray-300 px-3 py-3 text-xs outline-none focus:border-black"
-                        />
-                      </label>
+                {/* SIZE GROUPS */}
+                <div className="space-y-5">
+                  {sizeGroups.map(size => {
+                    const sizeVariants = variants
+                      .map((variant, index) => ({ ...variant, originalIndex: index }))
+                      .filter(variant => variant.size === size)
 
-                      <label className="block text-[10px] font-bold">
-                        COLOUR
-                        <input
-                          required
-                          value={variant.color}
-                          placeholder="e.g. Black, White"
-                          onChange={e =>
-                            changeVariant(index, 'color', e.target.value)
-                          }
-                          className="mt-2 w-full border border-gray-300 px-3 py-3 text-xs outline-none focus:border-black"
-                        />
-                      </label>
+                    return (
+                      <div key={size} className="overflow-hidden border border-gray-200 bg-white">
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-gray-100 p-4">
+                          <div>
+                            <p className="text-[9px] font-black tracking-widest text-gray-400">
+                              SELECTED SIZE
+                            </p>
+                            <h4 className="mt-1 text-lg font-black">{size}</h4>
+                            <p className="mt-1 text-[10px] text-gray-500">
+                              {sizeVariants.filter(variant => variant.color).length} colour option(s)
+                            </p>
+                          </div>
 
-                      <label className="block text-[10px] font-bold">
-                        STOCK
-                        <input
-                          type="number"
-                          min="0"
-                          step="1"
-                          required
-                          value={variant.stock}
-                          onChange={e =>
-                            changeVariant(index, 'stock', e.target.value)
-                          }
-                          className="mt-2 w-full border border-gray-300 px-3 py-3 text-xs outline-none focus:border-black"
-                        />
-                      </label>
+                          <button
+                            type="button"
+                            onClick={() => removeSize(size)}
+                            className="flex items-center gap-2 border border-gray-300 bg-white px-3 py-2 text-[10px] font-bold text-red-600 transition hover:border-red-600 hover:bg-red-600 hover:text-white"
+                          >
+                            <Trash2 size={14} />
+                            REMOVE SIZE
+                          </button>
+                        </div>
 
-                      <button
-                        type="button"
-                        onClick={() => removeVariant(index)}
-                        aria-label="Remove variation"
-                        title="Remove variation"
-                        className="flex h-10 w-10 items-center justify-center border border-gray-200 text-gray-500 transition hover:border-red-600 hover:bg-red-600 hover:text-white"
-                      >
-                        <X size={17} />
-                      </button>
+                        <div className="space-y-3 p-4">
+                          <p className="text-[10px] font-black tracking-widest text-gray-400">
+                            COLOURS & QUANTITIES
+                          </p>
+
+                          {sizeVariants.map(variant => (
+                            <div
+                              key={variant.id || `${size}-${variant.originalIndex}`}
+                              className="grid grid-cols-1 gap-3 border border-gray-200 p-3 sm:grid-cols-[1fr_120px_40px] sm:items-end"
+                            >
+                              <label className="block text-[10px] font-bold">
+                                COLOUR
+                                <select
+                                  required
+                                  value={variant.color}
+                                  onChange={e => changeVariant(variant.originalIndex, 'color', e.target.value)}
+                                  className="mt-2 w-full border border-gray-300 bg-white px-3 py-3 text-xs outline-none focus:border-black"
+                                >
+                                  <option value="">Select colour</option>
+                                  {colourOptions.map(color => (
+                                    <option key={color} value={color}>{color}</option>
+                                  ))}
+                                </select>
+                              </label>
+
+                              <label className="block text-[10px] font-bold">
+                                QUANTITY
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="1"
+                                  required
+                                  value={variant.stock}
+                                  onChange={e => changeVariant(variant.originalIndex, 'stock', e.target.value)}
+                                  className="mt-2 w-full border border-gray-300 px-3 py-3 text-xs outline-none focus:border-black"
+                                />
+                              </label>
+
+                              <button
+                                type="button"
+                                onClick={() => removeVariant(variant.originalIndex)}
+                                aria-label={`Remove ${variant.color || 'colour'} from ${size}`}
+                                className="flex h-10 w-10 items-center justify-center border border-gray-200 text-gray-500 transition hover:border-red-600 hover:bg-red-600 hover:text-white"
+                              >
+                                <X size={16} />
+                              </button>
+                            </div>
+                          ))}
+
+                          <div className="border border-dashed border-gray-300 bg-gray-50 p-4">
+                            <label className="block text-[10px] font-bold">
+                              ADD ANOTHER COLOUR TO {size.toUpperCase()}
+                              <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                                <input
+                                  value={newColourInputs[size] || ''}
+                                  onChange={e => setNewColourInputs(current => ({ ...current, [size]: e.target.value }))}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault()
+                                      addColour(size)
+                                    }
+                                  }}
+                                  placeholder="Enter colour, e.g. Maroon"
+                                  className="min-w-0 flex-1 border border-gray-300 bg-white px-3 py-3 text-xs outline-none focus:border-black"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => addColour(size)}
+                                  className="flex items-center justify-center gap-2 bg-black px-4 py-3 text-[10px] font-black tracking-wider text-white transition hover:bg-gray-700"
+                                >
+                                  <Plus size={15} />
+                                  ADD COLOUR
+                                </button>
+                              </div>
+                            </label>
+                          </div>
+
+                          <div className="flex items-center justify-between border-t border-gray-200 pt-4">
+                            <span className="text-xs font-bold text-gray-500">
+                              TOTAL {size.toUpperCase()} STOCK
+                            </span>
+                            <strong className="text-lg font-black">
+                              {sizeVariants.reduce((total, variant) => total + Number(variant.stock || 0), 0)}
+                            </strong>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+
+                  {sizeGroups.length === 0 && (
+                    <div className="border border-dashed border-gray-300 bg-white p-8 text-center">
+                      <Package size={30} className="mx-auto mb-3 text-gray-300" />
+                      <p className="text-sm font-bold">No sizes added yet</p>
+                      <p className="mt-2 text-xs text-gray-500">
+                        Select a size above to start adding colours and stock.
+                      </p>
                     </div>
-                  ))}
+                  )}
                 </div>
 
-                <p className="mt-4 text-[10px] leading-5 text-gray-500">
-                  Total product stock is calculated automatically from all
-                  variations. Set a variation's stock to 0 when unavailable.
-                </p>
+                {/* TOTAL STOCK */}
+                <div className="mt-6 flex items-center justify-between border border-black bg-black p-4 text-white">
+                  <div>
+                    <p className="text-[9px] font-bold tracking-widest text-gray-400">
+                      TOTAL PRODUCT INVENTORY
+                    </p>
+                    <p className="mt-1 text-xs">All sizes and colours combined</p>
+                  </div>
+                  <strong className="text-2xl">
+                    {variants.reduce((total, variant) => total + Number(variant.stock || 0), 0)}
+                  </strong>
+                </div>
               </div>
 
               {/* Product settings */}

@@ -16,7 +16,10 @@ import {
   FileText
 } from 'lucide-react'
 
-const DELIVERY = 150
+const DELIVERY_OPTIONS = {
+  door_to_door: 150,
+  paxi_collection: 60
+}
 
 const BANK_DETAILS = {
   bank: 'Capitec',
@@ -33,8 +36,12 @@ export default function Cart() {
     name: '',
     phone: '',
     address: '',
+    collectionPoint: '',
+    collectionTown: '',
     notes: ''
   })
+
+  const [deliveryMethod, setDeliveryMethod] = useState('door_to_door')
 
   const [show, setShow] = useState(false)
   const [processing, setProcessing] = useState(false)
@@ -47,7 +54,11 @@ export default function Cart() {
   const [uploadError, setUploadError] = useState('')
   const [copied, setCopied] = useState(false)
 
-  const total = subtotal + (items.length ? DELIVERY : 0)
+  const deliveryFee = items.length
+    ? DELIVERY_OPTIONS[deliveryMethod]
+    : 0
+
+  const total = Number(subtotal) + deliveryFee
 
   const submit = async (e) => {
     e.preventDefault()
@@ -56,6 +67,22 @@ export default function Cart() {
 
     if (!supabase) {
       setError('The store is currently unavailable. Please try again later.')
+      return
+    }
+
+    if (
+      deliveryMethod === 'door_to_door' &&
+      !details.address.trim()
+    ) {
+      setError('Please enter your delivery address.')
+      return
+    }
+
+    if (
+      deliveryMethod === 'paxi_collection' &&
+      (!details.collectionPoint.trim() || !details.collectionTown.trim())
+    ) {
+      setError('Please enter your PEP collection point and town or suburb.')
       return
     }
 
@@ -68,12 +95,31 @@ export default function Cart() {
         {
           p_customer_name: details.name.trim(),
           p_customer_phone: details.phone.trim(),
-          p_delivery_address: details.address.trim(),
+
+          // The database function handles the selected delivery option.
+          p_delivery_address:
+            deliveryMethod === 'door_to_door'
+              ? details.address.trim()
+              : '',
+
           p_notes: details.notes.trim(),
+
           p_items: items.map(item => ({
             variant_id: item.variant_id,
             quantity: item.quantity
-          }))
+          })),
+
+          p_delivery_method: deliveryMethod,
+
+          p_collection_point:
+            deliveryMethod === 'paxi_collection'
+              ? details.collectionPoint.trim()
+              : '',
+
+          p_collection_town:
+            deliveryMethod === 'paxi_collection'
+              ? details.collectionTown.trim()
+              : ''
         }
       )
 
@@ -83,13 +129,26 @@ export default function Cart() {
         throw new Error('Your order could not be created. Please try again.')
       }
 
+      // Retrieve the final amount calculated by Supabase.
+      const { data: savedOrder, error: fetchError } = await supabase
+        .from('orders')
+        .select('subtotal, delivery_fee, total')
+        .eq('id', orderId)
+        .single()
+
+      if (fetchError) throw fetchError
+
       setActiveOrder({
         id: orderId,
         phone: details.phone.trim(),
         name: details.name.trim(),
-        total,
-        subtotal,
-        delivery: DELIVERY
+        total: Number(savedOrder.total),
+        subtotal: Number(savedOrder.subtotal),
+        delivery: Number(savedOrder.delivery_fee),
+        deliveryMethod,
+        address: details.address.trim(),
+        collectionPoint: details.collectionPoint.trim(),
+        collectionTown: details.collectionTown.trim()
       })
 
       clear()
@@ -237,7 +296,48 @@ export default function Cart() {
               {activeOrder.id}
             </div>
 
-            <div className="mt-6 flex justify-between items-center">
+            <div className="mt-6 space-y-3 text-sm">
+              <div className="flex justify-between gap-4">
+                <span className="text-gray-500">Delivery option</span>
+                <strong className="text-right">
+                  {activeOrder.deliveryMethod === 'paxi_collection'
+                    ? 'PEP collection (Paxi)'
+                    : 'Door-to-door delivery'}
+                </strong>
+              </div>
+
+              {activeOrder.deliveryMethod === 'paxi_collection' ? (
+                <>
+                  <div className="flex justify-between gap-4">
+                    <span className="text-gray-500">PEP collection point</span>
+                    <strong className="text-right">
+                      {activeOrder.collectionPoint}
+                    </strong>
+                  </div>
+
+                  <div className="flex justify-between gap-4">
+                    <span className="text-gray-500">Town / suburb</span>
+                    <strong className="text-right">
+                      {activeOrder.collectionTown}
+                    </strong>
+                  </div>
+                </>
+              ) : (
+                <div className="flex justify-between gap-4">
+                  <span className="text-gray-500">Delivery address</span>
+                  <strong className="text-right max-w-[60%]">
+                    {activeOrder.address}
+                  </strong>
+                </div>
+              )}
+
+              <div className="flex justify-between gap-4">
+                <span className="text-gray-500">Delivery fee</span>
+                <strong>{money(activeOrder.delivery)}</strong>
+              </div>
+            </div>
+
+            <div className="mt-6 pt-5 border-t border-gray-200 flex justify-between items-center">
               <span className="text-sm text-gray-500">
                 Amount to pay
               </span>
@@ -414,7 +514,7 @@ export default function Cart() {
 
           <div className="text-center mt-8">
             <p className="text-xs text-gray-500 leading-5 mb-5">
-              Delivery takes 2–3 weeks after payment is confirmed.
+              Delivery takes 2–3 weeks after payment is confirmed. PEP collection timing will depend on the shipment.
             </p>
 
             <Link
@@ -604,8 +704,12 @@ export default function Cart() {
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-500">Delivery</span>
-                  <strong>{money(DELIVERY)}</strong>
+                  <span className="text-gray-500">
+                    {deliveryMethod === 'paxi_collection'
+                      ? 'PEP collection'
+                      : 'Door-to-door delivery'}
+                  </span>
+                  <strong>{money(deliveryFee)}</strong>
                 </div>
 
                 <div className="border-t border-gray-200 pt-5 flex items-center justify-between">
@@ -618,7 +722,7 @@ export default function Cart() {
               </div>
 
               <p className="text-xs text-gray-500 leading-5 mt-6">
-                A delivery fee of R150 is added to every order.
+                Choose your preferred delivery option at checkout. The delivery fee will update automatically.
               </p>
 
               <button
@@ -645,10 +749,80 @@ export default function Cart() {
                     </h3>
 
                     <p className="text-xs text-gray-500">
-                      Please provide your details to place your order.
+                      Please provide your details and choose how you would like to receive your order.
                     </p>
                   </div>
 
+                  {/* DELIVERY METHOD */}
+                  <div>
+                    <label className="block text-xs font-bold mb-3">
+                      Choose delivery option *
+                    </label>
+
+                    <div className="space-y-3">
+
+                      <label className={`flex items-start gap-3 border p-4 cursor-pointer transition ${
+                        deliveryMethod === 'door_to_door'
+                          ? 'border-black bg-white'
+                          : 'border-gray-300 bg-white'
+                      }`}>
+                        <input
+                          type="radio"
+                          name="deliveryMethod"
+                          value="door_to_door"
+                          checked={deliveryMethod === 'door_to_door'}
+                          onChange={() => {
+                            setDeliveryMethod('door_to_door')
+                            setError('')
+                          }}
+                          className="mt-1 accent-black"
+                        />
+
+                        <span className="flex-1">
+                          <span className="flex justify-between gap-3 text-sm font-bold">
+                            Door-to-door delivery
+                            <span>{money(150)}</span>
+                          </span>
+
+                          <span className="block text-xs text-gray-500 mt-1">
+                            Have your order delivered to your address.
+                          </span>
+                        </span>
+                      </label>
+
+                      <label className={`flex items-start gap-3 border p-4 cursor-pointer transition ${
+                        deliveryMethod === 'paxi_collection'
+                          ? 'border-black bg-white'
+                          : 'border-gray-300 bg-white'
+                      }`}>
+                        <input
+                          type="radio"
+                          name="deliveryMethod"
+                          value="paxi_collection"
+                          checked={deliveryMethod === 'paxi_collection'}
+                          onChange={() => {
+                            setDeliveryMethod('paxi_collection')
+                            setError('')
+                          }}
+                          className="mt-1 accent-black"
+                        />
+
+                        <span className="flex-1">
+                          <span className="flex justify-between gap-3 text-sm font-bold">
+                            PEP collection (Paxi)
+                            <span>{money(60)}</span>
+                          </span>
+
+                          <span className="block text-xs text-gray-500 mt-1">
+                            Collect your order from your selected PEP collection point.
+                          </span>
+                        </span>
+                      </label>
+
+                    </div>
+                  </div>
+
+                  {/* CUSTOMER NAME */}
                   <div>
                     <label htmlFor="customer-name" className="block text-xs font-bold mb-2">
                       Full name *
@@ -664,6 +838,7 @@ export default function Cart() {
                     />
                   </div>
 
+                  {/* CUSTOMER PHONE */}
                   <div>
                     <label htmlFor="customer-phone" className="block text-xs font-bold mb-2">
                       Phone number *
@@ -680,22 +855,83 @@ export default function Cart() {
                     />
                   </div>
 
-                  <div>
-                    <label htmlFor="customer-address" className="block text-xs font-bold mb-2">
-                      Delivery address *
-                    </label>
+                  {/* DOOR-TO-DOOR ADDRESS */}
+                  {deliveryMethod === 'door_to_door' && (
+                    <div>
+                      <label htmlFor="customer-address" className="block text-xs font-bold mb-2">
+                        Delivery address *
+                      </label>
 
-                    <textarea
-                      id="customer-address"
-                      required
-                      rows="3"
-                      value={details.address}
-                      onChange={e => setDetails({ ...details, address: e.target.value })}
-                      className="w-full border border-gray-300 bg-white px-4 py-3 text-sm outline-none focus:border-black resize-y"
-                      placeholder="Enter your full delivery address"
-                    />
-                  </div>
+                      <textarea
+                        id="customer-address"
+                        required
+                        rows="3"
+                        value={details.address}
+                        onChange={e => setDetails({ ...details, address: e.target.value })}
+                        className="w-full border border-gray-300 bg-white px-4 py-3 text-sm outline-none focus:border-black resize-y"
+                        placeholder="Enter your full delivery address"
+                      />
+                    </div>
+                  )}
 
+                  {/* PEP COLLECTION DETAILS */}
+                  {deliveryMethod === 'paxi_collection' && (
+                    <div className="space-y-4 bg-white border border-gray-200 p-4">
+
+                      <div>
+                        <h4 className="font-bold text-sm mb-1">
+                          PEP COLLECTION DETAILS
+                        </h4>
+
+                        <p className="text-xs text-gray-500 leading-5">
+                          Enter the PEP store or collection point where you would like to collect your order.
+                        </p>
+                      </div>
+
+                      <div>
+                        <label htmlFor="collection-point" className="block text-xs font-bold mb-2">
+                          PEP store / collection point *
+                        </label>
+
+                        <input
+                          id="collection-point"
+                          required
+                          value={details.collectionPoint}
+                          onChange={e => setDetails({
+                            ...details,
+                            collectionPoint: e.target.value
+                          })}
+                          className="w-full border border-gray-300 bg-white px-4 py-3 text-sm outline-none focus:border-black"
+                          placeholder="Enter PEP store name or location"
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="collection-town" className="block text-xs font-bold mb-2">
+                          Town / suburb *
+                        </label>
+
+                        <input
+                          id="collection-town"
+                          required
+                          value={details.collectionTown}
+                          onChange={e => setDetails({
+                            ...details,
+                            collectionTown: e.target.value
+                          })}
+                          className="w-full border border-gray-300 bg-white px-4 py-3 text-sm outline-none focus:border-black"
+                          placeholder="Enter town or suburb"
+                        />
+                      </div>
+
+                      <p className="text-[11px] text-gray-500 leading-5">
+                        Please double-check your selected collection point before placing your order.
+                      </p>
+
+                    </div>
+                  )}
+
+                  {/* ORDER NOTES */}
                   <div>
                     <label htmlFor="order-notes" className="block text-xs font-bold mb-2">
                       Order notes (optional)
@@ -709,6 +945,24 @@ export default function Cart() {
                       className="w-full border border-gray-300 bg-white px-4 py-3 text-sm outline-none focus:border-black resize-y"
                       placeholder="Any additional information?"
                     />
+                  </div>
+
+                  {/* UPDATED TOTAL */}
+                  <div className="bg-white border border-gray-200 p-4 space-y-3">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-500">Subtotal</span>
+                      <strong>{money(subtotal)}</strong>
+                    </div>
+
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-500">Delivery fee</span>
+                      <strong>{money(deliveryFee)}</strong>
+                    </div>
+
+                    <div className="border-t border-gray-200 pt-3 flex justify-between">
+                      <span className="font-bold text-sm">Total to pay</span>
+                      <strong className="text-lg">{money(total)}</strong>
+                    </div>
                   </div>
 
                   {error && (
