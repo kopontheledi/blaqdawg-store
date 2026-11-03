@@ -27,7 +27,7 @@ export default function Header() {
 
       <a
         onClick={() => setOpen(false)}
-        href="/#specials"
+        href="/specials"
       >
         SPECIALS
       </a>

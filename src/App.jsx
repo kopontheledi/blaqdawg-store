@@ -11,6 +11,7 @@ import Product from './pages/Product'
 import Cart from './pages/Cart'
 import Admin from './pages/Admin'
 import Contact from './pages/Contact'
+import Specials from './pages/Specials'
 
 import { CartProvider } from './context/CartContext'
 
@@ -43,6 +44,8 @@ export default function App() {
         <Route path="/contact" element={<Contact />} />
 
         <Route path="/admin" element={<Admin />} />
+
+        <Route path="/specials" element={<Specials />} />
 
         <Route
           path="*"

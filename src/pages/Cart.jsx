@@ -41,7 +41,8 @@ export default function Cart() {
     notes: ''
   })
 
-  const [deliveryMethod, setDeliveryMethod] = useState('door_to_door')
+  // No delivery option selected by default.
+  const [deliveryMethod, setDeliveryMethod] = useState('')
 
   const [show, setShow] = useState(false)
   const [processing, setProcessing] = useState(false)
@@ -54,11 +55,12 @@ export default function Cart() {
   const [uploadError, setUploadError] = useState('')
   const [copied, setCopied] = useState(false)
 
-  const deliveryFee = items.length
+  // Only calculate delivery once an option has been selected.
+  const deliveryFee = deliveryMethod
     ? DELIVERY_OPTIONS[deliveryMethod]
-    : 0
+    : null
 
-  const total = Number(subtotal) + deliveryFee
+  const total = Number(subtotal) + (deliveryFee ?? 0)
 
   const submit = async (e) => {
     e.preventDefault()
@@ -67,6 +69,11 @@ export default function Cart() {
 
     if (!supabase) {
       setError('The store is currently unavailable. Please try again later.')
+      return
+    }
+
+    if (!deliveryMethod || deliveryFee === undefined || deliveryFee === null) {
+      setError('Please select a delivery option before placing your order.')
       return
     }
 
@@ -96,7 +103,6 @@ export default function Cart() {
           p_customer_name: details.name.trim(),
           p_customer_phone: details.phone.trim(),
 
-          // The database function handles the selected delivery option.
           p_delivery_address:
             deliveryMethod === 'door_to_door'
               ? details.address.trim()
@@ -514,7 +520,7 @@ export default function Cart() {
 
           <div className="text-center mt-8">
             <p className="text-xs text-gray-500 leading-5 mb-5">
-              Delivery takes 2–3 weeks after payment is confirmed. PEP collection timing will depend on the shipment.
+              Your delivery arrangements and estimated delivery or collection time will be confirmed according to the delivery option you selected. Orders are processed after payment has been confirmed.
             </p>
 
             <Link
@@ -584,18 +590,18 @@ export default function Cart() {
                 return (
                   <div
                     key={item.cartItemId}
-                    className="flex flex-col sm:flex-row gap-5 py-6"
+                    className="flex flex-col sm:flex-row gap-5 py-6 min-w-0"
                   >
 
                     <Link
                       to={`/product/${item.id}`}
-                      className="w-full sm:w-32 h-40 sm:h-36 flex-shrink-0 bg-gray-100 overflow-hidden"
+                      className="w-full sm:w-32 aspect-[4/3] sm:aspect-[4/5] flex-shrink-0 bg-gray-100 overflow-hidden flex items-center justify-center"
                     >
                       {item.image_url ? (
                         <img
                           src={item.image_url}
                           alt={item.name}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-contain"
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center font-black text-gray-400">
@@ -607,9 +613,9 @@ export default function Cart() {
                     <div className="flex-1 min-w-0">
 
                       <div className="flex justify-between gap-4">
-                        <div>
+                        <div className="min-w-0">
                           <Link to={`/product/${item.id}`}>
-                            <h3 className="font-bold text-base hover:text-gray-500 transition">
+                            <h3 className="font-bold text-base hover:text-gray-500 transition break-words">
                               {item.name}
                             </h3>
                           </Link>
@@ -703,13 +709,20 @@ export default function Cart() {
                   <strong>{money(subtotal)}</strong>
                 </div>
 
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-3">
                   <span className="text-gray-500">
                     {deliveryMethod === 'paxi_collection'
                       ? 'PEP collection'
-                      : 'Door-to-door delivery'}
+                      : deliveryMethod === 'door_to_door'
+                        ? 'Door-to-door delivery'
+                        : 'Delivery'}
                   </span>
-                  <strong>{money(deliveryFee)}</strong>
+
+                  <strong className="text-right">
+                    {deliveryFee !== null
+                      ? money(deliveryFee)
+                      : 'Select delivery option'}
+                  </strong>
                 </div>
 
                 <div className="border-t border-gray-200 pt-5 flex items-center justify-between">
@@ -722,7 +735,7 @@ export default function Cart() {
               </div>
 
               <p className="text-xs text-gray-500 leading-5 mt-6">
-                Choose your preferred delivery option at checkout. The delivery fee will update automatically.
+                Your delivery fee will be calculated according to the delivery option you select at checkout.
               </p>
 
               <button
@@ -853,6 +866,9 @@ export default function Cart() {
                       className="w-full border border-gray-300 bg-white px-4 py-3 text-sm outline-none focus:border-black"
                       placeholder="Enter your phone number"
                     />
+                    <p className="mt-1 text-xs text-gray-500">
+  Please ensure that the cellphone number provided above is one we can reach you on for updates regarding your order.
+</p>
                   </div>
 
                   {/* DOOR-TO-DOOR ADDRESS */}
@@ -954,9 +970,13 @@ export default function Cart() {
                       <strong>{money(subtotal)}</strong>
                     </div>
 
-                    <div className="flex justify-between text-xs">
+                    <div className="flex justify-between text-xs gap-3">
                       <span className="text-gray-500">Delivery fee</span>
-                      <strong>{money(deliveryFee)}</strong>
+                      <strong className="text-right">
+                        {deliveryFee !== null
+                          ? money(deliveryFee)
+                          : 'Select delivery option'}
+                      </strong>
                     </div>
 
                     <div className="border-t border-gray-200 pt-3 flex justify-between">
@@ -974,8 +994,8 @@ export default function Cart() {
 
                   <button
                     type="submit"
-                    disabled={processing}
-                    className="w-full flex items-center justify-center gap-3 bg-black text-white py-4 px-5 text-xs font-bold tracking-widest hover:bg-gray-800 transition disabled:opacity-60"
+                    disabled={processing || !deliveryMethod}
+                    className="w-full flex items-center justify-center gap-3 bg-black text-white py-4 px-5 text-xs font-bold tracking-widest hover:bg-gray-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {processing ? (
                       <>
@@ -1001,7 +1021,7 @@ export default function Cart() {
                     </p>
 
                     <p className="text-xs text-gray-500 leading-5">
-                      Delivery takes 2–3 weeks after payment is confirmed.
+                      Your delivery arrangements and estimated timeframe will be confirmed according to the delivery option you select.
                     </p>
                   </div>
 

@@ -11,12 +11,12 @@ export default function ProductCard({ product }) {
     14 * 86400000
 
   return (
-    <article className="group bg-white">
+    <article className="group bg-white w-full min-w-0 flex flex-col overflow-hidden">
 
       {/* PRODUCT IMAGE */}
       <Link
         to={`/product/${product.id}`}
-        className="relative block aspect-[4/5] bg-gray-100 overflow-hidden"
+        className="relative block w-full aspect-[4/5] bg-gray-100 overflow-hidden shrink-0"
       >
         {product.image_url ? (
           <img
@@ -46,21 +46,24 @@ export default function ProductCard({ product }) {
       </Link>
 
       {/* PRODUCT INFORMATION */}
-      <div className="pt-4 pb-2 flex flex-col h-full">
+      <div className="pt-4 pb-2 flex flex-col flex-1 min-w-0">
 
-        <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-gray-500 mb-2">
+        <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-gray-500 mb-2 truncate">
           {product.category}
         </p>
 
         {/* PRODUCT NAME */}
-        <Link to={`/product/${product.id}`} className="block">
-          <h3 className="text-sm sm:text-base font-bold text-black hover:text-gray-500 transition line-clamp-2 min-h-[2.8rem] leading-[1.4rem]">
+        <Link
+          to={`/product/${product.id}`}
+          className="block min-w-0"
+        >
+          <h3 className="text-sm sm:text-base font-bold text-black hover:text-gray-500 transition line-clamp-2 min-h-[2.8rem] leading-[1.4rem] break-words">
             {product.name}
           </h3>
         </Link>
 
         {/* PRICE */}
-        <div className="flex items-center gap-3 mt-3 min-h-[28px]">
+        <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-3 min-h-[28px]">
           {special ? (
             <>
               <strong className="text-base font-bold text-black">
@@ -88,7 +91,7 @@ export default function ProductCard({ product }) {
         {/* VIEW PRODUCT BUTTON */}
         <Link
           to={`/product/${product.id}`}
-          className="flex items-center justify-center w-full mt-auto mt-4 py-3 px-4 bg-black text-white text-[11px] font-bold tracking-[0.15em] hover:bg-gray-800 transition"
+          className="flex items-center justify-center w-full mt-4 py-3 px-2 bg-black text-white text-[11px] font-bold tracking-[0.15em] text-center hover:bg-gray-800 transition"
         >
           VIEW PRODUCT
         </Link>
