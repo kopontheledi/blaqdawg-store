@@ -8,7 +8,7 @@ export default function ProductCard({ product }) {
 
   const isNew = product.created_at &&
     Date.now() - new Date(product.created_at).getTime() <
-      14 * 86400000
+    14 * 86400000
 
   return (
     <article className="group bg-white">
@@ -46,20 +46,21 @@ export default function ProductCard({ product }) {
       </Link>
 
       {/* PRODUCT INFORMATION */}
-      <div className="pt-4 pb-2">
+      <div className="pt-4 pb-2 flex flex-col h-full">
 
         <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-gray-500 mb-2">
           {product.category}
         </p>
 
-        <Link to={`/product/${product.id}`}>
-          <h3 className="text-sm sm:text-base font-bold text-black hover:text-gray-500 transition line-clamp-2">
+        {/* PRODUCT NAME */}
+        <Link to={`/product/${product.id}`} className="block">
+          <h3 className="text-sm sm:text-base font-bold text-black hover:text-gray-500 transition line-clamp-2 min-h-[2.8rem] leading-[1.4rem]">
             {product.name}
           </h3>
         </Link>
 
         {/* PRICE */}
-        <div className="flex items-center gap-3 mt-3">
+        <div className="flex items-center gap-3 mt-3 min-h-[28px]">
           {special ? (
             <>
               <strong className="text-base font-bold text-black">
@@ -87,7 +88,7 @@ export default function ProductCard({ product }) {
         {/* VIEW PRODUCT BUTTON */}
         <Link
           to={`/product/${product.id}`}
-          className="flex items-center justify-center w-full mt-4 py-3 px-4 bg-black text-white text-[11px] font-bold tracking-[0.15em] hover:bg-gray-800 transition"
+          className="flex items-center justify-center w-full mt-auto mt-4 py-3 px-4 bg-black text-white text-[11px] font-bold tracking-[0.15em] hover:bg-gray-800 transition"
         >
           VIEW PRODUCT
         </Link>
