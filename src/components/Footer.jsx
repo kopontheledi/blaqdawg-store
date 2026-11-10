@@ -31,13 +31,6 @@ export default function Footer() {
               079 807 8005
             </a>
           </p>
-
-          <p>
-            WhatsApp:{' '}
-            <a href="https://wa.me/27798078005" target="_blank" rel="noreferrer">
-              079 807 8005
-            </a>
-          </p>
         </div>
 
         {/* BUSINESS HOURS */}

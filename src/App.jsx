@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 
 import Header from './components/Header'
 import Footer from './components/Footer'
+import WhatsAppButton from './components/WhatsAppButton'
 
 import Home from './pages/Home'
 import Shop from './pages/Shop'
@@ -58,6 +59,7 @@ export default function App() {
       </Routes>
 
       <Footer />
+      <WhatsAppButton />
     </CartProvider>
   )
 }
